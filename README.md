@@ -1,6 +1,6 @@
 # LNL-GTSRB — Improved (Deep Learning giữa kỳ)
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bnqtoan/LNL-GTSRB-NhomX/blob/main/Instructions.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bnqtoan/LNL-GTSRB/blob/main/Instructions.ipynb)
 
 Cải tiến mô hình nhận dạng biển báo giao thông **GTSRB** dựa trên
 **LNL (Locality-iN-Locality)** — Transformer-in-Transformer + cơ chế locality.
