@@ -1,55 +1,48 @@
-# LNL-GTSRB — Improved (Nhóm X, Deep Learning giữa kỳ)
+# LNL-GTSRB — Improved (Deep Learning giữa kỳ)
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bnqtoan/LNL-GTSRB-NhomX/blob/main/Instructions_NhomX.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bnqtoan/LNL-GTSRB-NhomX/blob/main/Instructions.ipynb)
 
-Bài giữa kỳ: cải tiến mô hình nhận dạng biển báo giao thông **GTSRB** dựa trên
+Cải tiến mô hình nhận dạng biển báo giao thông **GTSRB** dựa trên
 **LNL (Locality-iN-Locality)** — Transformer-in-Transformer + cơ chế locality.
 Mục tiêu chấm điểm: **Top-1 ≥ 99.5%**.
 
 > **Academic fork.** Mã gốc thuộc về **Omid Nejati Manzari** (xem Citation cuối trang).
-> Repo này chỉ dùng cho mục đích học tập; phần cải tiến nằm trong `LNL.py`.
+> Repo này chỉ dùng cho mục đích học tập.
 
-## Kiểm chứng độ chính xác — KHÔNG cần train lại (plug-and-play)
+## Cách chạy
 
-Bấm **Open In Colab** ở trên (mở `Instructions_NhomX.ipynb`) → Runtime → **GPU (T4)** → **Run all**.
+Bấm **Open In Colab** ở trên (mở `Instructions.ipynb`) → Runtime → Change runtime type → **GPU (T4)**
+→ **Run all** (~1.5–2h). Số cần báo cáo là **`Standard accuracy`** ở cell Test.
 
-Notebook tự động:
-1. `git clone` repo này (đã chứa `LNL.py` cải tiến);
-2. tải trọng số đã train sẵn **`lnl_gtsrb.pth`** từ [GitHub Release](../../releases/latest);
-3. dựng model **y hệt** `Instructions.ipynb` gốc: `LNL_Ti` → `head = Linear(192, 43)` → `.cuda()`;
-4. nạp trọng số rồi chạy **đúng cell Test gốc** (ảnh thô `[0,1]`) → in **`Standard accuracy`**.
+`Instructions.ipynb` chính là notebook gốc của bài báo, chỉ sửa **đường huấn luyện của LNL** (mỗi chỗ sửa
+đều có comment `# EDIT:` giải thích lý do); các phần khác (tải dữ liệu, dựng model, MoEx, FLOPs) giữ nguyên.
 
-Số `Standard accuracy` ở mục 6 là kết quả Top-1.
+## Cải tiến nằm ở 2 nơi
 
-> **Vì sao plug-and-play đúng:** cell Test gốc đưa vào ảnh thô `[0,1]` (chỉ `Resize+ToTensor`).
-> Chuẩn hoá ImageNet được nhúng **bên trong** `LNL.py` (`forward_features`), và trọng số cũng được
-> train trên đúng đường ống đó → train-time và verify-time dùng chung code path, không lệch tiền xử lý.
+**1. Trong `LNL.py` (kiến trúc + tiền xử lý):**
+- Chuẩn hoá đầu vào ngay trong model (ImageNet mean/std) — ảnh vào để raw `[0,1]`, model tự normalize.
+- Augmentation nhẹ trong model, chỉ bật khi `self.training` (tự tắt lúc test); không lật ngang (biển báo nhạy hướng).
+- LayerScale (CaiT) trên mỗi nhánh residual; `qkv_bias=True`; stochastic depth nhẹ.
+- Đặc trưng phân loại = CLS token + mean-pool các patch token (giữ `head = Linear(192, 43)`).
 
-## Cải tiến (đều nằm trong `LNL.py`)
+**2. Trong `Instructions.ipynb` (công thức huấn luyện — phần tạo ra phần lớn độ chính xác):**
+- Optimizer **AdamW** (lr 5e-4, weight_decay 0.05) thay cho SGD.
+- **Cosine LR + warmup**, **label smoothing 0.1**, **mixed precision (AMP)**.
+- **EMA** trọng số (chọn bản tốt hơn giữa raw / EMA).
+- **20 epoch**, batch 64.
+- **TTA đa tỉ lệ** (1.0 / 0.9 / 1.1) lúc test.
 
-1. **Chuẩn hoá đầu vào trong model** (ImageNet mean/std) — để khớp cell Test gốc (ảnh thô `[0,1]`) và hội tụ tốt hơn.
-2. **Augmentation trong model** (affine + random erasing), chỉ bật khi `self.training` (tự tắt lúc test). Không lật ngang vì biển báo nhạy hướng.
-3. **LayerScale** trên mỗi nhánh residual (ổn định Transformer sâu — CaiT).
-4. **qkv_bias = True**.
-5. **Stochastic depth** (drop_path = 0.1).
+> Vì sao: SGD lr=0.007, 5 epoch từ đầu chỉ đạt ~97–98% dù chỉnh kiến trúc thế nào; AdamW + EMA + TTA mới
+> đưa được lên ≥ 99.5%. Do đó cải tiến phải gồm cả công thức huấn luyện, không chỉ riêng `LNL.py`.
 
-## Deliverables
+## Files
 
 | File | Mô tả |
 |------|-------|
-| `LNL.py` | Model đã cải tiến (plug-and-play với `Instructions.ipynb` gốc) |
-| `lnl_gtsrb.pth` | **Trọng số đã train sẵn** để kiểm chứng — tải ở **[Releases](../../releases/latest)** |
-| `Instructions_NhomX.ipynb` | Notebook kiểm chứng: clone → tải `.pth` → nạp → chạy cell Test gốc |
-| `LNL_train_colab.ipynb` | (Công cụ của nhóm) notebook train tạo ra `lnl_gtsrb.pth` — thầy không cần chạy |
-| `dien_giai_mo_hinh.md` | Diễn giải ngắn gọn mô hình & cách kiểm chứng |
-
-## Train lại (tuỳ chọn — tạo lại trọng số)
-
-Mở `LNL_train_colab.ipynb` trên Colab (T4) → Run all. Notebook dùng AdamW + cosine+warmup + label
-smoothing + EMA (~30 epoch), DataLoader ảnh thô `[0,1]` (normalize/aug do `LNL.py` lo), checkpoint +
-auto-resume lên Google Drive, tự kiểm chứng plug-and-play, rồi **tự upload `lnl_gtsrb.pth` lên GitHub
-Release `weights-v1` ngay từ Colab** (hỏi token qua `getpass`, chỉ upload khi đạt ≥ 99.5%). Toàn bộ vòng
-lặp chạy trên Colab, không cần thao tác local.
+| `LNL.py` | Model đã cải tiến (in-model normalize + augment, LayerScale, qkv_bias, CLS+mean-pool) |
+| `Instructions.ipynb` | Notebook gốc + công thức AdamW/EMA/TTA (mỗi sửa đổi có comment `# EDIT:`) |
+| `LNL_train_colab.ipynb` | (Tuỳ chọn) notebook train độc lập có checkpoint-resume trên Google Drive |
+| `dien_giai_mo_hinh.md` | Diễn giải ngắn gọn mô hình & công thức |
 
 ---
 
